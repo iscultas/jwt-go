@@ -1,0 +1,42 @@
+name: Test
+
+on:
+  pull_request:
+    branches:
+      - trunk
+    paths:
+      - '**.go'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    permissions:
+      security-events: write
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      - uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+      - uses: actions/setup-go@v3
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Check for suspicious constructs
+        run: go vet
+      - name: Validate formatting
+        run: test -z "$(gofmt -d $(find . -name '*.go' -type f -print) | tee /dev/stderr)"
+      - name: Install Ginkgo
+        run: go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
+      - name: Run test suite
+        run: ginkgo --procs 2 -r

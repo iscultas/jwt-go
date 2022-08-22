@@ -1,0 +1,7 @@
+repos:
+  - repo: https://github.com/iscultas/pre-commit-go
+    rev: v1.0
+    hooks:
+      - id: go-vet
+      - id: gofmt
+      - id: ginkgo

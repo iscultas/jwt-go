@@ -1,0 +1,53 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - trunk
+    paths:
+      - '**.go'
+      - go.mod
+      - go.sum
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    permissions:
+      security-events: write
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      - uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: go.mod
+      - name: Check for suspicious constructs
+        run: go vet
+      - name: Validate formatting
+        run: test -z "$(gofmt -d $(find . -name '*.go' -type f -print) | tee /dev/stderr)"
+      - name: Install Ginkgo
+        run: go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
+      - name: Run test suite
+        run: ginkgo -r --procs=2 --compilers=2 --randomize-all --randomize-suites --fail-on-pending --keep-going --cover --coverprofile=cover.profile --trace
+      - name: SonarCloud Scan
+        uses: sonarsource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.go.coverage.reportPaths=cover.profile
